@@ -1,0 +1,523 @@
+{% set cluster1MasterRange = properties["cluster1MasterCidrRange"] %}
+{% set deployment = env["deployment"] %}
+{% set gkeReleaseChannel = properties["gkeReleaseChannel"] or 'REGULAR' %}
+{% set jumpServerName = "asd-jump-server-" + env["deployment"] %}
+{% set nat = env["deployment"] + "-nat"  %}
+{% set network = env["deployment"] + "-net" %}
+{% set project = env["project"] %}
+{% set project_number = env["project_number"] %}
+{% set region = properties["zone"].split('-')[0:2]|join('-') %}
+{% set router = env["deployment"] + "-router"  %}
+{% set rtcName = "asd-rtc-" + env["deployment"] %}
+{% set subnetCidrRange = "10.0.0.0/24" %}
+{% set subnetwork = env["deployment"] + "-subnet"  %}
+{% set svcAccount = properties["svcAccount"] %}
+{% set zone = properties["zone"] %}
+
+{% set sourceImage = "https://www.googleapis.com/compute/v1/projects/click-to-deploy-images/global/images/anthos-trial-on-gcp-v1641385587314" %}
+{% set releaseDate = "20220110" %}
+
+resources:
+  - name: services-anthos
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: anthos.googleapis.com
+
+  - name: services-cloudresourcemanager
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: cloudresourcemanager.googleapis.com
+
+  - name: services-container
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: container.googleapis.com
+
+  - name: services-gkeconnect
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: gkeconnect.googleapis.com
+
+  - name: services-gkehub
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: gkehub.googleapis.com
+
+  - name: services-iamcredentials
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: iamcredentials.googleapis.com
+
+  - name: services-logging
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: logging.googleapis.com
+
+  - name: services-meshca
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: meshca.googleapis.com
+
+  - name: services-meshconfig
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: meshconfig.googleapis.com
+
+  - name: services-meshtelemetry
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: meshtelemetry.googleapis.com
+
+  - name: services-monitoring
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: monitoring.googleapis.com
+
+  - name: services-runtimeconfig
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: runtimeconfig.googleapis.com
+
+  - name: services-sourcerepo
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: sourcerepo.googleapis.com
+
+  - name: services-stackdriver
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: stackdriver.googleapis.com
+
+  - name: services-serviceusage
+    type: deploymentmanager.v2.virtual.enableService
+    properties:
+      consumerId: "project:{{ project }}"
+      serviceName: serviceusage.googleapis.com
+
+  - name: {{ rtcName }}
+    type: runtimeconfig.v1beta1.config
+    metadata:
+      dependsOn:
+        - services-runtimeconfig
+    properties:
+      config: {{ rtcName }}
+
+  - name: {{ network }}
+    type: compute.v1.network
+    properties:
+      autoCreateSubnetworks: false
+      description: "Anthos Sample Deployment Network"
+
+  - name: {{ subnetwork }}
+    type: compute.v1.subnetwork
+    metadata:
+      dependsOn:
+      - {{ network }}
+    properties:
+      ipCidrRange: {{ subnetCidrRange}}
+      description: "Anthos Sample Deployment Subnetwork"
+      network: $(ref.{{ network }}.selfLink)
+      region: {{ region }}
+      privateIpGoogleAccess: TRUE
+
+  - name: {{ router }}
+    type: gcp-types/compute-v1:routers
+    metadata:
+      dependsOn:
+      - {{ subnetwork }}
+    properties:
+      network: $(ref.{{ network }}.selfLink)
+      region: {{ region}}
+      nats:
+      - name: {{ nat}}
+        sourceSubnetworkIpRangesToNat: ALL_SUBNETWORKS_ALL_IP_RANGES
+        natIpAllocateOption: AUTO_ONLY
+
+  - name: {{ deployment }}-m2n
+    type: compute.v1.firewall
+    metadata:
+      dependsOn:
+      - {{ subnetwork }}
+    properties:
+      description: "Allow traffic from GKE master to nodes"
+      network: $(ref.{{ network }}.selfLink)
+      sourceRanges: ["{{ cluster1MasterRange }}"]
+      allowed:
+        - IPProtocol: TCP
+          ports: ["1-65535"]
+      targetServiceAccounts: [{{ svcAccount }}]
+
+  - name: {{ deployment }}-ssh
+    type: compute.v1.firewall
+    metadata:
+      dependsOn:
+      - {{ subnetwork }}
+    properties:
+      description: "Allow SSH via Cloud IAP"
+      network: $(ref.{{ network }}.selfLink)
+      sourceRanges: ["35.235.240.0/20"]
+      allowed:
+        - IPProtocol: TCP
+          ports: ["22"]
+
+  - name: {{ jumpServerName }}
+    metadata:
+      dependsOn:
+        - services-cloudresourcemanager
+        - services-gkeconnect
+        - services-gkehub
+        - services-iamcredentials
+        - services-meshca
+        - services-meshconfig
+        - services-sourcerepo
+        - services-runtimeconfig
+        - services-serviceusage
+        - {{ router }}
+    type: compute.v1.instance
+    properties:
+      instanceName: {{ jumpServerName }}
+      zone: {{ zone }}
+      machineType: zones/{{ zone }}/machineTypes/f1-micro
+      disks:
+        - deviceName: boot
+          type: PERSISTENT
+          boot: true
+          autoDelete: true
+          initializeParams:
+            sourceImage: {{ sourceImage }}
+            labels:
+              created-for-anthos-sample-deployment: "{{ releaseDate }}"
+      labels:
+        created-for-anthos-sample-deployment: "{{ releaseDate }}"
+      networkInterfaces:
+        - network: $(ref.{{ network }}.selfLink)
+          subnetwork: $(ref.{{ subnetwork }}.selfLink)
+      tags:
+        items:
+          - {{ deployment }}-deployment
+      serviceAccounts:
+        - email: {{ svcAccount }}
+          scopes:
+            - 'https://www.googleapis.com/auth/cloud-platform'
+      metadata:
+        items:
+          - key: deployment-name
+            value: {{ deployment }}
+          - key: rtc-name
+            value: {{ rtcName }}
+          - key: network-name
+            value: {{ network }}
+          - key: subnetwork-name
+            value: {{ subnetwork }}
+
+  - name: prerequisite-check-sa-permission
+    type: runtimeconfig.v1beta1.waiter
+    metadata:
+      dependsOn:
+        - {{ jumpServerName }}
+    properties:
+      parent: $(ref.{{ rtcName }}.name)
+      waiter: prerequisite-check-sa-permission
+      timeout: 300s
+      success:
+        cardinality:
+          path: /success/PrerequisiteCheckSaPermission
+          number: 1
+      failure:
+        cardinality:
+          path: /failure/PrerequisiteCheckSaPermission
+          number: 1
+
+  - name: prerequisite-check-existing-deployment
+    type: runtimeconfig.v1beta1.waiter
+    metadata:
+      dependsOn:
+        - prerequisite-check-sa-permission
+    properties:
+      parent: $(ref.{{ rtcName }}.name)
+      waiter: prerequisite-check-existing-deployment
+      timeout: 300s
+      success:
+        cardinality:
+          path: /success/PrerequisiteCheckExistingDeployment
+          number: 1
+      failure:
+        cardinality:
+          path: /failure/PrerequisiteCheckExistingDeployment
+          number: 1
+
+  - name: prerequisite-check-invalid-project-env
+    type: runtimeconfig.v1beta1.waiter
+    metadata:
+      dependsOn:
+        - prerequisite-check-existing-deployment
+    properties:
+      parent: $(ref.{{ rtcName }}.name)
+      waiter: prerequisite-check-invalid-project-env
+      timeout: 300s
+      success:
+        cardinality:
+          path: /success/PrerequisiteCheckInvalidProjectEnv
+          number: 1
+      failure:
+        cardinality:
+          path: /failure/PrerequisiteCheckInvalidProjectEnv
+          number: 1
+
+  - name: prerequisite-check-invalid-project-id
+    type: runtimeconfig.v1beta1.waiter
+    metadata:
+      dependsOn:
+        - prerequisite-check-invalid-project-env
+    properties:
+      parent: $(ref.{{ rtcName }}.name)
+      waiter: prerequisite-check-invalid-project-id
+      timeout: 300s
+      success:
+        cardinality:
+          path: /success/PrerequisiteCheckInvalidProjectId
+          number: 1
+      failure:
+        cardinality:
+          path: /failure/PrerequisiteCheckInvalidProjectId
+          number: 1
+
+  - name: prerequisite-check-org-policy-ip-forwarding
+    type: runtimeconfig.v1beta1.waiter
+    metadata:
+      dependsOn:
+        - prerequisite-check-invalid-project-id
+    properties:
+      parent: $(ref.{{ rtcName }}.name)
+      waiter: prerequisite-check-org-policy-ip-forwarding
+      timeout: 300s
+      success:
+        cardinality:
+          path: /success/PrerequisiteCheckOrgPolicyIpForwarding
+          number: 1
+      failure:
+        cardinality:
+          path: /failure/PrerequisiteCheckOrgPolicyIpForwarding
+          number: 1
+
+  - name: prerequisite-check-org-policy-os-login
+    type: runtimeconfig.v1beta1.waiter
+    metadata:
+      dependsOn:
+        - prerequisite-check-org-policy-ip-forwarding
+    properties:
+      parent: $(ref.{{ rtcName }}.name)
+      waiter: prerequisite-check-org-policy-os-login
+      timeout: 300s
+      success:
+        cardinality:
+          path: /success/PrerequisiteCheckOrgPolicyOsLogin
+          number: 1
+      failure:
+        cardinality:
+          path: /failure/PrerequisiteCheckOrgPolicyOsLogin
+          number: 1
+
+  - name: prerequisite-check-cpu-quota
+    type: runtimeconfig.v1beta1.waiter
+    metadata:
+      dependsOn:
+        - prerequisite-check-org-policy-os-login
+    properties:
+      parent: $(ref.{{ rtcName }}.name)
+      waiter: prerequisite-check-cpu-quota
+      timeout: 300s
+      success:
+        cardinality:
+          path: /success/PrerequisiteCheckCpuQuota
+          number: 1
+      failure:
+        cardinality:
+          path: /failure/PrerequisiteCheckCpuQuota
+          number: 1
+
+  - name: anthos-sample-cluster1
+    metadata:
+      dependsOn:
+        - prerequisite-check-cpu-quota
+    type: gcp-types/container-v1beta1:projects.zones.clusters
+    properties:
+      zone: {{ zone }}
+      cluster:
+        name: anthos-sample-cluster1
+        loggingService: logging.googleapis.com/kubernetes
+        monitoringService: monitoring.googleapis.com/kubernetes
+        network: $(ref.{{ network }}.selfLink)
+        subnetwork: $(ref.{{ subnetwork }}.selfLink)
+        addonsConfig:
+          horizontalPodAutoscaling:
+            disabled: false
+          httpLoadBalancing:
+            disabled: false
+          cloudRunConfig:
+            disabled: true
+        releaseChannel:
+          channel: {{ gkeReleaseChannel }}
+        nodePools:
+          - name: default-pool
+            config:
+              machineType: e2-standard-2
+              diskSizeGb: 100
+              diskType: pd-standard
+              oauthScopes:
+                - "https://www.googleapis.com/auth/cloud-platform"
+              serviceAccount: {{ svcAccount }}
+              metadata:
+                disable-legacy-endpoints: "true"
+              preemptible: false
+              workloadMetadataConfig:
+                nodeMetadata: GKE_METADATA_SERVER
+            initialNodeCount: 3
+            autoscaling:
+              enabled: true
+              minNodeCount: 2
+              maxNodeCount: 3
+            management:
+              autoRepair: true
+              autoUpgrade: true
+        resourceLabels:
+          created-for-anthos-sample-deployment: "{{ releaseDate }}"
+          mesh_id: "proj-{{ project_number }}"
+        ipAllocationPolicy:
+          useIpAliases: true
+        workloadIdentityConfig:
+          identityNamespace: {{ project }}.svc.id.goog
+        privateCluster: True
+        privateClusterConfig:
+          enablePrivateNodes: true
+          masterIpv4CidrBlock: {{ cluster1MasterRange }}
+        masterAuthorizedNetworksConfig:
+          enabled: false
+
+  - name: obtain-clusters-credentials
+    type: runtimeconfig.v1beta1.waiter
+    metadata:
+      dependsOn:
+        - anthos-sample-cluster1
+    properties:
+      parent: $(ref.{{ rtcName }}.name)
+      waiter: obtain-clusters-credentials
+      timeout: 900s
+      success:
+        cardinality:
+          path: /success/GKE
+          number: 1
+      failure:
+        cardinality:
+          path: /failure/GKE
+          number: 1
+
+  - name: kubectl-setup
+    type: runtimeconfig.v1beta1.waiter
+    metadata:
+      dependsOn:
+        - obtain-clusters-credentials
+    properties:
+      parent: $(ref.{{ rtcName }}.name)
+      waiter: kubectl-setup
+      timeout: 300s
+      success:
+        cardinality:
+          path: /success/ClusterAuth
+          number: 1
+      failure:
+        cardinality:
+          path: /failure/ClusterAuth
+          number: 1
+
+  - name: cluster-registration-with-hub
+    type: runtimeconfig.v1beta1.waiter
+    metadata:
+      dependsOn:
+        - kubectl-setup
+    properties:
+      parent: $(ref.{{ rtcName }}.name)
+      waiter: cluster-registration-with-hub
+      timeout: 300s
+      success:
+        cardinality:
+          path: /success/ClusterRegistration
+          number: 1
+      failure:
+        cardinality:
+          path: /failure/ClusterRegistration
+          number: 1
+
+  - name: anthos-service-mesh-setup
+    type: runtimeconfig.v1beta1.waiter
+    metadata:
+      dependsOn:
+        - cluster-registration-with-hub
+    properties:
+      parent: $(ref.{{ rtcName }}.name)
+      waiter: anthos-service-mesh-setup
+      timeout: 480s
+      success:
+        cardinality:
+          path: /success/ASM
+          number: 1
+      failure:
+        cardinality:
+          path: /failure/ASM
+          number: 1
+
+  - name: anthos-config-management-setup
+    type: runtimeconfig.v1beta1.waiter
+    metadata:
+      dependsOn:
+        - anthos-service-mesh-setup
+    properties:
+      parent: $(ref.{{ rtcName }}.name)
+      waiter: anthos-config-management-setup
+      timeout: 1020s
+      success:
+        cardinality:
+          path: /success/ACM
+          number: 2
+      failure:
+        cardinality:
+          path: /failure/ACM
+          number: 1
+
+  - name: application-deployment
+    type: runtimeconfig.v1beta1.waiter
+    metadata:
+      dependsOn:
+        - anthos-config-management-setup
+    properties:
+      parent: $(ref.{{ rtcName }}.name)
+      waiter: application-deployment
+      timeout: 1200s  # Timeout is set to 1200s per cluster
+      success:
+        cardinality:
+          path: /success/BankOfAnthos
+          number: 1
+      failure:
+        cardinality:
+          path: /failure/BankOfAnthos
+          number: 1
+
+outputs:
+  - name: vmName
+    value: {{ jumpServerName }}
+  - name: vmSelfLink
+    value: $(ref.{{ jumpServerName }}.selfLink)

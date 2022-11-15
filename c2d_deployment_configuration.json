@@ -1,0 +1,7 @@
+{
+  "defaultDeploymentType": "MULTI_VM",
+  "imageName": "anthos-trial-on-gcp-v1641385587314",
+  "projectId": "click-to-deploy-images",
+  "templateName": "nonexistent_template",
+  "useSolutionPackage": true
+}

@@ -1,0 +1,84 @@
+metadataVersion: v1
+description:
+  title: Anthos Sample Deployment on Google Cloud (Preview)
+  author:
+    title: Google Click to Deploy
+    shortDescription: Popular open stacks on Google Compute Engine packaged by Google.
+    descriptionHtml: Popular open stacks on Google Compute Engine packaged by Google.
+  url: https://cloud.google.com/anthos/docs/tutorials/explore-anthos
+  version: 1.11.0
+  tagline: Experience Anthos on Google Cloud with a sample deployment
+  descriptionHtml: <p>The Anthos Sample Deployment lets you try Anthos on Google Cloud
+    with a sample demo deployment. It creates an Anthos sample environment that includes
+    one cluster pre-configured with Anthos features and a sample application. After
+    the deployment is complete, associated tutorials guide you through using Anthos
+    on Google Cloud.</p><p>It is not for production use and its components are not
+    upgradeable. We recommend deleting the deployment after you have completed your
+    chosen tutorial(s) and explored the sample to avoid incurring additional costs.</p>
+  logo: '@media/logo.png'
+  documentations:
+  - destinations:
+    - DESTINATION_SOLUTION_DETAILS
+    - DESTINATION_POST_DEPLOY
+    title: Anthos Sample Deployment Tutorial
+    url: https://cloud.google.com/anthos/docs/tutorials/explore-anthos
+  softwareGroups:
+  - type: SOFTWARE_GROUP_OS
+    software:
+    - title: Debian
+      version: '9.13'
+  support:
+  - title: Support
+    descriptionHtml: Google Cloud Platform technical support is available as a paid
+      package from Google Cloud Support.
+input:
+  sections:
+  - name: PREREQ
+    title: Before you begin
+    tooltip: Requirements for Anthos Sample Deployment
+  - name: CONFIG
+    title: Deployment Configurations
+    tooltip: Customizable options of Anthos Sample Deployment
+  properties:
+  - name: prereqCheckCompleted
+    title: Confirm that all prerequisites have been met.
+    subtext: Visit <a href='https://cloud.google.com/anthos/docs/tutorials/explore-anthos#before-you-begin'>this
+      link</a> for more details. Review all requirements, including <a href='https://console.cloud.google.com/apis/api/servicemanagement.googleapis.com/overview'>enabling
+      Service Management API</a>, running a prerequiste check script and fixing anything
+      that doesn't PASS. If any requirement is not met, you might not be able to deploy
+      the sample.
+    section: PREREQ
+  - name: zone
+    title: Deployment Zone
+    subtext: Select the zone to deploy the GKE clusters and jump server.
+    section: CONFIG
+  - name: svcAccount
+    title: Service Account
+    subtext: Choose an existing or create a new service account for the GKE clusters
+      and jump server.
+    section: CONFIG
+  - name: cluster1MasterCidrRange
+    title: Anthos Sample Cluster Master IP range
+    subtext: Enter a valid /28 range within 10.0.0.0/8, 172.16.0.0/12 or 192.168.0.0/16,
+      excluding 10.0.0.0/24 which is used for the Anthos Sample Deployment subnet.
+      This range cannot overlap with any other private GKE master IP ranges within
+      the project.
+    section: CONFIG
+runtime:
+  deployingMessage: Deployment can take several minutes to complete.
+  applicationTable:
+    rows:
+    - label: Instance
+      value: <a href="{{ consoleUrl(outputs().vmSelfLink) }}">{{ outputs().vmName
+        }}</a>
+  primaryButton:
+    type: TYPE_URL
+    label: Manage Anthos
+    action: https://console.cloud.google.com/anthos
+  suggestedActions:
+  - heading: Get started with Anthos
+    description: Now that your deployment is complete, follow the instructions outlined
+      as part of the <a href="https://cloud.google.com/anthos/docs/tutorials/explore-anthos">Anthos
+      Sample Deployment tutorial</a> to experience Anthos on Google Cloud.
+annotations:
+  vmImage0: https://www.googleapis.com/compute/v1/projects/click-to-deploy-images/global/images/anthos-trial-on-gcp-v1641385587314

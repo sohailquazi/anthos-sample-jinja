@@ -1,0 +1,13 @@
+imports:
+- path: anthos-trial-on-gcp.jinja
+
+resources:
+- name: anthos-trial-on-gcp
+  type: anthos-trial-on-gcp.jinja
+  properties:
+    svcAccount: anthos-trial-service-account@cloud-launcher-verifier-prd.iam.gserviceaccount.com
+    prereqCheckCompleted: true
+    # The solution expects a service account on the project creating a deployment.
+    # To pass verification in staging, please manually change the workspace version to use
+    # the service account below instead.
+    # svcAccount: anthos-sample-service-account@cloud-launcher-verifier-stg.iam.gserviceaccount.com
